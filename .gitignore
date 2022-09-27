@@ -130,3 +130,5 @@ dmypy.json
 
 *.pe*
 *.po*
+
+currentselection.sh
