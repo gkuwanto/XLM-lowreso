@@ -1,5 +1,0 @@
-#!/bin/bash -l
-#$ -P multilm
-#$-m ea
-#$ -N ne_bpe
-sh apply-bpe.sh --src en --tgt ne
