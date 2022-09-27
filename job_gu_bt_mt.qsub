@@ -1,0 +1,12 @@
+#!/bin/bash -l
+#$ -P multilm
+#$ -pe omp 8
+#$ -l gpus=2
+#$ -l gpu_c=6.0
+#$-m ea
+#$ -N bt_mt_gu
+#$ -l h_rt=40:00:0
+module load python3/3.7.7
+module load cuda/10.1
+module load pytorch/1.6.0
+sh pretrain_bt_mt_gu.sh

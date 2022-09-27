@@ -383,6 +383,7 @@ class TransformerModel(nn.Module):
         tensor = self.embeddings(x)
         tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
         if langs is not None and self.use_lang_emb:
+        #if langs is not None and self.use_lang_emb and self.is_decoder:
             tensor = tensor + self.lang_embeddings(langs)
         tensor = self.layer_norm_emb(tensor)
         tensor = F.dropout(tensor, p=self.dropout, training=self.training)

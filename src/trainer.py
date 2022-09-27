@@ -540,7 +540,8 @@ class Trainer(object):
         # reload model parameters
         for name in self.MODEL_NAMES:
             getattr(self, name).load_state_dict(data[name])
-
+            #getattr(self, name).load_state_dict({k[len('module.'):]: v for k, v in data[name].items()})
+            
         # reload optimizers
         for name in self.optimizers.keys():
             if False:  # AMP checkpoint reloading is buggy, we cannot do that - TODO: fix - https://github.com/NVIDIA/apex/issues/250

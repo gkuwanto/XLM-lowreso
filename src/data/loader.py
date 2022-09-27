@@ -63,7 +63,7 @@ def load_binarized(path, params):
         if os.path.isfile(split_path):
             assert params.split_data is False
             path = split_path
-    assert os.path.isfile(path), path
+    #assert os.path.isfile(path), path
     logger.info("Loading data from %s ..." % path)
     data = torch.load(path)
     data = process_binarized(data, params)
@@ -210,7 +210,9 @@ def load_para_data(params, data):
 
             # for validation and test set, enumerate sentence per sentence
             if splt != 'train':
-                dataset.tokens_per_batch = -1
+            	dataset.remove_empty_sentences()
+            	dataset.remove_long_sentences(params.max_len)
+            	dataset.tokens_per_batch = -1
 
             # if there are several processes on the same machine, we can split the dataset
             if splt == 'train' and params.n_gpu_per_node > 1 and params.split_data:
@@ -294,7 +296,7 @@ def check_data_params(params):
         for p in paths.values():
             if not os.path.isfile(p):
                 logger.error(f"{p} not found")
-    assert all([all([os.path.isfile(p) for p in paths.values()]) for paths in params.mono_dataset.values()])
+    #assert all([all([os.path.isfile(p) for p in paths.values()]) for paths in params.mono_dataset.values()])
 
     # check parallel datasets
     required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)

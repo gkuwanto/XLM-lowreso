@@ -1,0 +1,11 @@
+#!/bin/bash -l
+#$ -P multilm
+#$ -pe omp 8
+#$ -l gpus=2
+#$ -l gpu_c=6.0
+#$-m ea
+#$ -N gu_mt_only
+module load python3/3.7.3
+module load cuda/10.1
+module load pytorch/1.1
+sh pretrain_mt_only_gu.sh

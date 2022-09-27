@@ -4,16 +4,17 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+module load python3/3.7.3
+module load cuda/10.1
+module load pytorch/1.1
 
 set -e
 
 
 #
 # Data preprocessing configuration
-#N_MONO=3850211
-N_MONO=1373363
-#N_MONO=1983275
-# cat $(ls * | grep -v gz) | wc -l
+N_MONO=0
+# N_MONO=5000000 
 CODES=60000     # number of BPE codes
 N_THREADS=16    # number of threads in data preprocessing
 
@@ -119,6 +120,29 @@ PARA_TGT_VALID_BPE=$PROC_PATH/valid.$SRC-$TGT.$TGT
 PARA_SRC_TEST_BPE=$PROC_PATH/test.$SRC-$TGT.$SRC
 PARA_TGT_TEST_BPE=$PROC_PATH/test.$SRC-$TGT.$TGT
 
+
+
+# valid/test 
+PARA_SRC_VALIDUN=$PARA_PATH/$SRC-$TGT.$SRC.valid.untok
+PARA_TGT_VALIDUN=$PARA_PATH/$SRC-$TGT.$TGT.valid.untok
+PARA_SRC_TESTUN=$PARA_PATH/$SRC-$TGT.$SRC.test.untok
+PARA_TGT_TESTUN=$PARA_PATH/$SRC-$TGT.$TGT.test.untok
+
+# valid/test 
+PARA_SRC_VALID=$PARA_PATH/valid.$SRC-$TGT.$SRC
+PARA_TGT_VALID=$PARA_PATH/valid.$SRC-$TGT.$TGT
+PARA_SRC_TEST=$PARA_PATH/test.$SRC-$TGT.$SRC
+PARA_TGT_TEST=$PARA_PATH/test.$SRC-$TGT.$TGT
+
+# train
+PARA_SRC_TRAINUN=$PARA_PATH/$SRC-$TGT.$SRC.train.untok
+PARA_TGT_TRAINUN=$PARA_PATH/$SRC-$TGT.$TGT.train.untok
+PARA_SRC_TRAIN=$PARA_PATH/train.$SRC-$TGT.$SRC
+PARA_TGT_TRAIN=$PARA_PATH/train.$SRC-$TGT.$TGT
+PARA_SRC_TRAIN_BPE=$PROC_PATH/train.$SRC-$TGT.$SRC
+PARA_TGT_TRAIN_BPE=$PROC_PATH/train.$SRC-$TGT.$TGT
+
+
 # install tools
 #./install-tools.sh
 
@@ -133,26 +157,24 @@ TGT_TMP=$MONO_PATH/$TGT/tmp.$TGT
 # concatenate monolingual data files
 if ! [[ -f "$SRC_RAW" ]]; then
   echo "Concatenating $SRC monolingual data..."
-  cat $(ls $SRC/*$SRC* | grep -v gz) | wc -l
-  cat $(ls $SRC/*$SRC* | grep -v gz) | shuf -n $N_MONO > $SRC_TMP
-  head -n $((N_MONO - 10000)) $SRC_TMP > $SRC_RAW
-  (tail -n 10000 $SRC_TMP) | head -n 5000 > $PROC_PATH/valid.$SRC
-  tail -n 5000 $SRC_TMP > $PROC_PATH/test.$SRC
+  cat $(ls $SRC/*$SRC* | grep -v gz) | shuf > $SRC_RAW
+  #cat $(ls $SRC/*$SRC* | grep -v gz) | wc -l
+  #cat $(ls $SRC/*$SRC* | grep -v gz) | shuf -n $N_MONO > $SRC_TMP
+  #head -n $((N_MONO - 10000)) $SRC_TMP > $SRC_RAW
+  #(tail -n 10000 $SRC_TMP) | head -n 5000 > $PROC_PATH/valid.$SRC
+  #tail -n 5000 $SRC_TMP > $PROC_PATH/test.$SRC
 fi
 if ! [[ -f "$TGT_RAW" ]]; then
   echo "Concatenating $TGT monolingual data..."
-  cat $(ls $TGT/*$TGT* | grep -v gz) | wc -l
-  cat $(ls $TGT/*$TGT* | grep -v gz) | shuf -n $N_MONO > $TGT_TMP
-  head -n $((N_MONO - 10000)) $TGT_TMP > $TGT_RAW
-  (tail -n 10000 $TGT_TMP) | head -n 5000 > $PROC_PATH/valid.$TGT
-  tail -n 5000 $TGT_TMP > $PROC_PATH/test.$TGT
+  cat $(ls $TGT/*$TGT* | grep -v gz) | shuf > $TGT_RAW
+  #cat $(ls $TGT/*$TGT* | grep -v gz) | wc -l
+  #cat $(ls $TGT/*$TGT* | grep -v gz) | shuf -n $N_MONO > $TGT_TMP
+  #head -n $((N_MONO - 10000)) $TGT_TMP > $TGT_RAW
+  #(tail -n 10000 $TGT_TMP) | head -n 5000 > $PROC_PATH/valid.$TGT
+  #tail -n 5000 $TGT_TMP > $PROC_PATH/test.$TGT
 fi
 echo "$SRC monolingual data concatenated in: $SRC_RAW"
 echo "$TGT monolingual data concatenated in: $TGT_RAW"
-echo "$SRC monolingual valid data in: $PROC_PATH/valid.$SRC"
-echo "$TGT monolingual valid data in: $PROC_PATH/test.$SRC"
-echo "$SRC monolingual test data in: $PROC_PATH/valid.$TGT"
-echo "$TGT monolingual test data in: $PROC_PATH/test.$TGT"
 
 
 # # check number of lines
@@ -245,12 +267,53 @@ fi
 echo "$SRC binarized data in: $SRC_TRAIN_BPE.pth"
 echo "$TGT binarized data in: $TGT_TRAIN_BPE.pth"
 
+# FOR PARALLEL DATA
+
+# TODO for sgm files
+echo "Tokenizing valid and test data..."
+eval "$INPUT_FROM_SGM < $PARA_SRC_VALIDUN.sgm | $SRC_PREPROCESSING > $PARA_SRC_VALID"
+eval "$INPUT_FROM_SGM < $PARA_TGT_VALIDUN.sgm | $TGT_PREPROCESSING > $PARA_TGT_VALID"
+eval "$INPUT_FROM_SGM < $PARA_SRC_TESTUN.sgm  | $SRC_PREPROCESSING > $PARA_SRC_TEST"
+eval "$INPUT_FROM_SGM < $PARA_TGT_TESTUN.sgm  | $TGT_PREPROCESSING > $PARA_TGT_TEST"
+
+# TODO for raw text files
+#echo "Tokenizing valid and test data..."
+#eval "cat $PARA_SRC_VALIDUN | $SRC_PREPROCESSING > $PARA_SRC_VALID"
+#eval "cat $PARA_TGT_VALIDUN | $TGT_PREPROCESSING > $PARA_TGT_VALID"
+#eval "cat $PARA_SRC_TESTUN  | $SRC_PREPROCESSING > $PARA_SRC_TEST"
+#eval "cat $PARA_TGT_TESTUN  | $TGT_PREPROCESSING > $PARA_TGT_TEST"
 
 
-$MAIN_PATH/preprocess.py $FULL_VOCAB $PROC_PATH/valid.$SRC
-$MAIN_PATH/preprocess.py $FULL_VOCAB $PROC_PATH/valid.$TGT
-$MAIN_PATH/preprocess.py $FULL_VOCAB $PROC_PATH/test.$SRC
-$MAIN_PATH/preprocess.py $FULL_VOCAB $PROC_PATH/test.$TGT
+echo "Applying BPE to valid and test files..."
+$FASTBPE applybpe $PARA_SRC_VALID_BPE $PARA_SRC_VALID $BPE_CODES $SRC_VOCAB
+$FASTBPE applybpe $PARA_TGT_VALID_BPE $PARA_TGT_VALID $BPE_CODES $TGT_VOCAB
+$FASTBPE applybpe $PARA_SRC_TEST_BPE  $PARA_SRC_TEST  $BPE_CODES $SRC_VOCAB
+$FASTBPE applybpe $PARA_TGT_TEST_BPE  $PARA_TGT_TEST  $BPE_CODES $TGT_VOCAB
+
+echo "Binarizing data..."
+rm -f $PARA_SRC_VALID_BPE.pth $PARA_TGT_VALID_BPE.pth $PARA_SRC_TEST_BPE.pth $PARA_TGT_TEST_BPE.pth
+$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_SRC_VALID_BPE
+$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_VALID_BPE
+$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_SRC_TEST_BPE
+$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_TEST_BPE
+
+
+# train
+eval "cat $PARA_SRC_TRAINUN  | $SRC_PREPROCESSING > $PARA_SRC_TRAIN"
+eval "cat $PARA_TGT_TRAINUN  | $TGT_PREPROCESSING > $PARA_TGT_TRAIN"
+$FASTBPE applybpe $PARA_SRC_TRAIN_BPE  $PARA_SRC_TRAIN  $BPE_CODES $SRC_VOCAB
+$FASTBPE applybpe $PARA_TGT_TRAIN_BPE  $PARA_TGT_TRAIN  $BPE_CODES $TGT_VOCAB
+$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_SRC_TRAIN_BPE
+$MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_TRAIN_BPE
+
+
+#
+# Link monolingual validation and test data to parallel data
+#
+ln -sf $PARA_SRC_VALID_BPE.pth $SRC_VALID_BPE.pth
+ln -sf $PARA_TGT_VALID_BPE.pth $TGT_VALID_BPE.pth
+ln -sf $PARA_SRC_TEST_BPE.pth  $SRC_TEST_BPE.pth
+ln -sf $PARA_TGT_TEST_BPE.pth  $TGT_TEST_BPE.pth
 
 
 #
@@ -267,3 +330,13 @@ echo "    $TGT: $TGT_VALID_BPE.pth"
 echo "Monolingual test data:"
 echo "    $SRC: $SRC_TEST_BPE.pth"
 echo "    $TGT: $TGT_TEST_BPE.pth"
+echo "Parallel test data:"
+echo "    $SRC: $PARA_SRC_TRAIN_BPE.pth"
+echo "    $TGT: $PARA_TGT_TRAIN_BPE.pth"
+echo "Parallel validation data:"
+echo "    $SRC: $PARA_SRC_VALID_BPE.pth"
+echo "    $TGT: $PARA_TGT_VALID_BPE.pth"
+echo "Parallel test data:"
+echo "    $SRC: $PARA_SRC_TEST_BPE.pth"
+echo "    $TGT: $PARA_TGT_TEST_BPE.pth"
+echo ""
