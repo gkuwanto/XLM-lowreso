@@ -268,20 +268,21 @@ echo "$SRC binarized data in: $SRC_TRAIN_BPE.pth"
 echo "$TGT binarized data in: $TGT_TRAIN_BPE.pth"
 
 # FOR PARALLEL DATA
-
-# TODO for sgm files
-echo "Tokenizing valid and test data..."
-eval "$INPUT_FROM_SGM < $PARA_SRC_VALIDUN.sgm | $SRC_PREPROCESSING > $PARA_SRC_VALID"
-eval "$INPUT_FROM_SGM < $PARA_TGT_VALIDUN.sgm | $TGT_PREPROCESSING > $PARA_TGT_VALID"
-eval "$INPUT_FROM_SGM < $PARA_SRC_TESTUN.sgm  | $SRC_PREPROCESSING > $PARA_SRC_TEST"
-eval "$INPUT_FROM_SGM < $PARA_TGT_TESTUN.sgm  | $TGT_PREPROCESSING > $PARA_TGT_TEST"
-
-# TODO for raw text files
-#echo "Tokenizing valid and test data..."
-#eval "cat $PARA_SRC_VALIDUN | $SRC_PREPROCESSING > $PARA_SRC_VALID"
-#eval "cat $PARA_TGT_VALIDUN | $TGT_PREPROCESSING > $PARA_TGT_VALID"
-#eval "cat $PARA_SRC_TESTUN  | $SRC_PREPROCESSING > $PARA_SRC_TEST"
-#eval "cat $PARA_TGT_TESTUN  | $TGT_PREPROCESSING > $PARA_TGT_TEST"
+if test -f "$PARA_SRC_VALIDUN.sgm"; then
+  echo ".sgm file found!"
+  echo "Tokenizing valid and test data..."
+  eval "$INPUT_FROM_SGM < $PARA_SRC_VALIDUN.sgm | $SRC_PREPROCESSING > $PARA_SRC_VALID"
+  eval "$INPUT_FROM_SGM < $PARA_TGT_VALIDUN.sgm | $TGT_PREPROCESSING > $PARA_TGT_VALID"
+  eval "$INPUT_FROM_SGM < $PARA_SRC_TESTUN.sgm  | $SRC_PREPROCESSING > $PARA_SRC_TEST"
+  eval "$INPUT_FROM_SGM < $PARA_TGT_TESTUN.sgm  | $TGT_PREPROCESSING > $PARA_TGT_TEST"
+else
+  echo ".sgm file note found!"
+  echo "Tokenizing valid and test data without SGM..."
+  eval "cat $PARA_SRC_VALIDUN | $SRC_PREPROCESSING > $PARA_SRC_VALID"
+  eval "cat $PARA_TGT_VALIDUN | $TGT_PREPROCESSING > $PARA_TGT_VALID"
+  eval "cat $PARA_SRC_TESTUN  | $SRC_PREPROCESSING > $PARA_SRC_TEST"
+  eval "cat $PARA_TGT_TESTUN  | $TGT_PREPROCESSING > $PARA_TGT_TEST"
+fi
 
 
 echo "Applying BPE to valid and test files..."
