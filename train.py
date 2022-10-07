@@ -212,6 +212,11 @@ def get_parser():
     parser.add_argument("--master_port", type=int, default=-1,
                         help="Master port (for multi-node SLURM jobs)")
 
+    # contrastive learning
+    parser.add_argument("--alpha_ctr", type=float, default=0.1,
+                        help="Proportion of contrastive learning loss compared to Cross Entropy loss, 0.5 means equal proportion, 1 means only contrastive loss, 0 means only CE loss")
+    parser.add_argument("--do_ctr", type=bool_flag, default=False,
+                        help="Use contrastive loss for MT step")
     return parser
 
 
@@ -257,7 +262,8 @@ def main(params):
     # language model training
     for _ in range(params.max_epoch):
 
-        logger.info("============ Starting epoch %i ... ============" % trainer.epoch)
+        logger.info("============ Starting epoch %i ... ============" %
+                    trainer.epoch)
 
         trainer.n_sentences = 0
 
@@ -281,7 +287,9 @@ def main(params):
 
             # machine translation steps
             for lang1, lang2 in shuf_order(params.mt_steps, params):
-                trainer.mt_step(lang1, lang2, params.lambda_mt)
+                lang3 = 'cs' if params.do_ctr else None
+                trainer.mt_step(lang1, lang2, params.lambda_mt,
+                                params.alpha_ctr, params.do_ctr, lang3)
 
             # back-translation steps
             for lang1, lang2, lang3 in shuf_order(params.bt_steps):
@@ -289,7 +297,8 @@ def main(params):
 
             trainer.iter()
 
-        logger.info("============ End of epoch %i ============" % trainer.epoch)
+        logger.info("============ End of epoch %i ============" %
+                    trainer.epoch)
 
         # evaluate perplexity
         scores = evaluator.run_all_evals(trainer)

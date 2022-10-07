@@ -90,7 +90,8 @@ def get_masks(slen, lengths, causal):
 
     # attention mask is the same as mask, or triangular inferior attention (causal)
     if causal:
-        attn_mask = alen[None, None, :].repeat(bs, slen, 1) <= alen[None, :, None]
+        attn_mask = alen[None, None, :].repeat(
+            bs, slen, 1) <= alen[None, :, None]
     else:
         attn_mask = mask
 
@@ -105,6 +106,7 @@ class PredLayer(nn.Module):
     """
     Prediction layer (cross_entropy or adaptive_softmax).
     """
+
     def __init__(self, params):
         super().__init__()
         self.asm = params.asm
@@ -174,10 +176,12 @@ class MultiHeadAttention(nn.Module):
             klen = qlen if cache is None else cache['slen'] + qlen
         else:
             klen = kv.size(1)
-        assert dim == self.dim, 'Dimensions do not match: %s input vs %s configured' % (dim, self.dim)
+        assert dim == self.dim, 'Dimensions do not match: %s input vs %s configured' % (
+            dim, self.dim)
         n_heads = self.n_heads
         dim_per_head = dim // n_heads
-        mask_reshape = (bs, 1, qlen, klen) if mask.dim() == 3 else (bs, 1, 1, klen)
+        mask_reshape = (bs, 1, qlen, klen) if mask.dim(
+        ) == 3 else (bs, 1, 1, klen)
 
         def shape(x):
             """  projection """
@@ -187,34 +191,49 @@ class MultiHeadAttention(nn.Module):
             """  compute context """
             return x.transpose(1, 2).contiguous().view(bs, -1, self.n_heads * dim_per_head)
 
-        q = shape(self.q_lin(input))                                          # (bs, n_heads, qlen, dim_per_head)
+        # (bs, n_heads, qlen, dim_per_head)
+        q = shape(self.q_lin(input))
         if kv is None:
-            k = shape(self.k_lin(input))                                      # (bs, n_heads, qlen, dim_per_head)
-            v = shape(self.v_lin(input))                                      # (bs, n_heads, qlen, dim_per_head)
+            # (bs, n_heads, qlen, dim_per_head)
+            k = shape(self.k_lin(input))
+            # (bs, n_heads, qlen, dim_per_head)
+            v = shape(self.v_lin(input))
         elif cache is None or self.layer_id not in cache:
             k = v = kv
-            k = shape(self.k_lin(k))                                          # (bs, n_heads, qlen, dim_per_head)
-            v = shape(self.v_lin(v))                                          # (bs, n_heads, qlen, dim_per_head)
+            # (bs, n_heads, qlen, dim_per_head)
+            k = shape(self.k_lin(k))
+            # (bs, n_heads, qlen, dim_per_head)
+            v = shape(self.v_lin(v))
 
         if cache is not None:
             if self.layer_id in cache:
                 if kv is None:
                     k_, v_ = cache[self.layer_id]
-                    k = torch.cat([k_, k], dim=2)                             # (bs, n_heads, klen, dim_per_head)
-                    v = torch.cat([v_, v], dim=2)                             # (bs, n_heads, klen, dim_per_head)
+                    # (bs, n_heads, klen, dim_per_head)
+                    k = torch.cat([k_, k], dim=2)
+                    # (bs, n_heads, klen, dim_per_head)
+                    v = torch.cat([v_, v], dim=2)
                 else:
                     k, v = cache[self.layer_id]
             cache[self.layer_id] = (k, v)
 
-        q = q / math.sqrt(dim_per_head)                                       # (bs, n_heads, qlen, dim_per_head)
-        scores = torch.matmul(q, k.transpose(2, 3))                           # (bs, n_heads, qlen, klen)
-        mask = (mask == 0).view(mask_reshape).expand_as(scores)               # (bs, n_heads, qlen, klen)
-        scores.masked_fill_(mask, -float('inf'))                              # (bs, n_heads, qlen, klen)
+        # (bs, n_heads, qlen, dim_per_head)
+        q = q / math.sqrt(dim_per_head)
+        # (bs, n_heads, qlen, klen)
+        scores = torch.matmul(q, k.transpose(2, 3))
+        mask = (mask == 0).view(mask_reshape).expand_as(
+            scores)               # (bs, n_heads, qlen, klen)
+        # (bs, n_heads, qlen, klen)
+        scores.masked_fill_(mask, -float('inf'))
 
-        weights = F.softmax(scores.float(), dim=-1).type_as(scores)           # (bs, n_heads, qlen, klen)
-        weights = F.dropout(weights, p=self.dropout, training=self.training)  # (bs, n_heads, qlen, klen)
-        context = torch.matmul(weights, v)                                    # (bs, n_heads, qlen, dim_per_head)
-        context = unshape(context)                                            # (bs, qlen, dim)
+        # (bs, n_heads, qlen, klen)
+        weights = F.softmax(scores.float(), dim=-1).type_as(scores)
+        # (bs, n_heads, qlen, klen)
+        weights = F.dropout(weights, p=self.dropout, training=self.training)
+        # (bs, n_heads, qlen, dim_per_head)
+        context = torch.matmul(weights, v)
+        # (bs, qlen, dim)
+        context = unshape(context)
 
         return self.out_lin(context)
 
@@ -238,7 +257,8 @@ class TransformerFFN(nn.Module):
 
 class TransformerModel(nn.Module):
 
-    ATTRIBUTES = ['encoder', 'with_output', 'eos_index', 'pad_index', 'n_langs', 'n_words', 'dim', 'n_layers', 'n_heads', 'hidden_dim', 'dropout', 'attention_dropout', 'asm', 'asm_cutoffs', 'asm_div_value']
+    ATTRIBUTES = ['encoder', 'with_output', 'eos_index', 'pad_index', 'n_langs', 'n_words', 'dim', 'n_layers',
+                  'n_heads', 'hidden_dim', 'dropout', 'attention_dropout', 'asm', 'asm_cutoffs', 'asm_div_value']
 
     def __init__(self, params, dico, is_encoder, with_output):
         """
@@ -275,10 +295,12 @@ class TransformerModel(nn.Module):
         # embeddings
         self.position_embeddings = Embedding(N_MAX_POSITIONS, self.dim)
         if params.sinusoidal_embeddings:
-            create_sinusoidal_embeddings(N_MAX_POSITIONS, self.dim, out=self.position_embeddings.weight)
+            create_sinusoidal_embeddings(
+                N_MAX_POSITIONS, self.dim, out=self.position_embeddings.weight)
         if params.n_langs > 1 and self.use_lang_emb:
             self.lang_embeddings = Embedding(self.n_langs, self.dim)
-        self.embeddings = Embedding(self.n_words, self.dim, padding_idx=self.pad_index)
+        self.embeddings = Embedding(
+            self.n_words, self.dim, padding_idx=self.pad_index)
         self.layer_norm_emb = nn.LayerNorm(self.dim, eps=1e-12)
 
         # transformer layers
@@ -297,18 +319,22 @@ class TransformerModel(nn.Module):
             for layer_id, pos in mem_positions:
                 assert 0 <= layer_id <= params.n_layers - 1
                 assert pos in ['in', 'after']
-                self.memories['%i_%s' % (layer_id, pos)] = HashingMemory.build(self.dim, self.dim, params)
+                self.memories['%i_%s' % (layer_id, pos)] = HashingMemory.build(
+                    self.dim, self.dim, params)
 
         for layer_id in range(self.n_layers):
-            self.attentions.append(MultiHeadAttention(self.n_heads, self.dim, dropout=self.attention_dropout))
+            self.attentions.append(MultiHeadAttention(
+                self.n_heads, self.dim, dropout=self.attention_dropout))
             self.layer_norm1.append(nn.LayerNorm(self.dim, eps=1e-12))
             if self.is_decoder:
                 self.layer_norm15.append(nn.LayerNorm(self.dim, eps=1e-12))
-                self.encoder_attn.append(MultiHeadAttention(self.n_heads, self.dim, dropout=self.attention_dropout))
+                self.encoder_attn.append(MultiHeadAttention(
+                    self.n_heads, self.dim, dropout=self.attention_dropout))
             if ('%i_in' % layer_id) in self.memories:
                 self.ffns.append(None)
             else:
-                self.ffns.append(TransformerFFN(self.dim, self.hidden_dim, self.dim, dropout=self.dropout, gelu_activation=params.gelu_activation))
+                self.ffns.append(TransformerFFN(self.dim, self.hidden_dim, self.dim,
+                                 dropout=self.dropout, gelu_activation=params.gelu_activation))
             self.layer_norm2.append(nn.LayerNorm(self.dim, eps=1e-12))
 
         # output layer
@@ -326,6 +352,8 @@ class TransformerModel(nn.Module):
             return self.fwd(**kwargs)
         elif mode == 'predict':
             return self.predict(**kwargs)
+        elif mode == 'contrastive':
+            return self.contrastive(**kwargs)
         else:
             raise Exception("Unknown mode: %s" % mode)
 
@@ -354,7 +382,8 @@ class TransformerModel(nn.Module):
         # generate masks
         mask, attn_mask = get_masks(slen, lengths, causal)
         if self.is_decoder and src_enc is not None:
-            src_mask = torch.arange(src_len.max(), dtype=torch.long, device=lengths.device) < src_len[:, None]
+            src_mask = torch.arange(
+                src_len.max(), dtype=torch.long, device=lengths.device) < src_len[:, None]
 
         # positions
         if positions is None:
@@ -383,7 +412,7 @@ class TransformerModel(nn.Module):
         tensor = self.embeddings(x)
         tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
         if langs is not None and self.use_lang_emb:
-        #if langs is not None and self.use_lang_emb and self.is_decoder:
+            # if langs is not None and self.use_lang_emb and self.is_decoder:
             tensor = tensor + self.lang_embeddings(langs)
         tensor = self.layer_norm_emb(tensor)
         tensor = F.dropout(tensor, p=self.dropout, training=self.training)
@@ -400,7 +429,8 @@ class TransformerModel(nn.Module):
 
             # encoder attention (for decoder only)
             if self.is_decoder and src_enc is not None:
-                attn = self.encoder_attn[i](tensor, src_mask, kv=src_enc, cache=cache)
+                attn = self.encoder_attn[i](
+                    tensor, src_mask, kv=src_enc, cache=cache)
                 attn = F.dropout(attn, p=self.dropout, training=self.training)
                 tensor = tensor + attn
                 tensor = self.layer_norm15[i](tensor)
@@ -428,6 +458,49 @@ class TransformerModel(nn.Module):
 
         return tensor
 
+    def contrastive(self, embedding_src, embedding_tgt, embedding_cs=None, temperature=0.1, cs_weight=0.5):
+        """
+        Inputs:
+            `embedding_src` LongTensor(slen, bs, dim), containing fwd embeddings of src sentence 
+            `embedding_tgt` LongTensor(slen, bs, dim), containing fwd embeddings of tgt sentence
+            `embedding_cs` LongTensor(slen, bs, dim), ( *optional)containing fwd embeddings of code-switched src sentence
+        """
+        has_cs = embedding_cs is not None
+
+        # Mean Pooling
+        sent_embedding_src = torch.mean(embedding_src, 0)  # (bs, dim)
+        sent_embedding_tgt = torch.mean(embedding_tgt, 0)  # (bs, dim)
+        if has_cs:
+            sent_embedding_cs = torch.mean(embedding_cs, 0)  # (bs, dim)
+
+        # Normalize so dot product is cosine similarity
+        sent_embedding_src = torch.nn.functional.normalize(
+            sent_embedding_src)  # (bs, dim) with |v| = 1
+        sent_embedding_tgt = torch.nn.functional.normalize(
+            sent_embedding_tgt)  # (bs, dim) with |v| = 1
+        if has_cs:
+            sent_embedding_cs = torch.nn.functional.normalize(
+                sent_embedding_cs)
+
+        # Get Pairwise dot product (cosine similarity)
+        sim_pair_orig = torch.exp(
+            sent_embedding_src @ sent_embedding_tgt.T / temperature)  # (bs, bs)
+        if has_cs:
+            sim_pair_cs = torch.exp(
+                sent_embedding_cs @ sent_embedding_tgt.T / temperature)  # (bs, bs)
+
+        # Calculate Loss
+        loss_orig = (-torch.log(sim_pair_orig.diag() /
+                     sim_pair_orig.sum(dim=1))).sum()
+        if has_cs:
+            loss_cs = (-torch.log(sim_pair_cs.diag() /
+                       sim_pair_cs.sum(dim=1))).sum()
+
+        loss = loss_orig
+        if has_cs:
+            loss += cs_weight * loss_cs
+        return loss
+
     def predict(self, tensor, pred_mask, y, get_scores):
         """
         Given the last hidden state, compute word scores and/or the loss.
@@ -436,7 +509,8 @@ class TransformerModel(nn.Module):
             `y` is a LongTensor of shape (pred_mask.sum(),)
             `get_scores` is a boolean specifying whether we need to return scores
         """
-        masked_tensor = tensor[pred_mask.unsqueeze(-1).expand_as(tensor)].view(-1, self.dim)
+        masked_tensor = tensor[pred_mask.unsqueeze(
+            -1).expand_as(tensor)].view(-1, self.dim)
         scores, loss = self.pred_layer(masked_tensor, y, get_scores)
         return scores, loss
 
@@ -465,11 +539,13 @@ class TransformerModel(nn.Module):
         # generated sentences
         generated = src_len.new(max_len, bs)  # upcoming output
         generated.fill_(self.pad_index)       # fill upcoming ouput with <PAD>
-        generated[0].fill_(self.eos_index)    # we use <EOS> for <BOS> everywhere
+        # we use <EOS> for <BOS> everywhere
+        generated[0].fill_(self.eos_index)
 
         # positions
         positions = src_len.new(max_len).long()
-        positions = torch.arange(max_len, out=positions).unsqueeze(1).expand(max_len, bs)
+        positions = torch.arange(max_len, out=positions).unsqueeze(
+            1).expand(max_len, bs)
 
         # language IDs
         langs = src_len.new(max_len).long().fill_(tgt_lang_id)
@@ -497,7 +573,8 @@ class TransformerModel(nn.Module):
                 src_len=src_len,
                 cache=cache
             )
-            assert tensor.size() == (1, bs, self.dim), (cur_len, max_len, src_enc.size(), tensor.size(), (1, bs, self.dim))
+            assert tensor.size() == (1, bs, self.dim), (cur_len, max_len,
+                                                        src_enc.size(), tensor.size(), (1, bs, self.dim))
             tensor = tensor.data[-1, :, :].type_as(src_enc)  # (bs, dim)
             scores = self.pred_layer.get_scores(tensor)      # (bs, n_words)
 
@@ -505,11 +582,13 @@ class TransformerModel(nn.Module):
             if sample_temperature is None:
                 next_words = torch.topk(scores, 1)[1].squeeze(1)
             else:
-                next_words = torch.multinomial(F.softmax(scores / sample_temperature, dim=1), 1).squeeze(1)
+                next_words = torch.multinomial(
+                    F.softmax(scores / sample_temperature, dim=1), 1).squeeze(1)
             assert next_words.size() == (bs,)
 
             # update generations / lengths / finished sentences / current length
-            generated[cur_len] = next_words * unfinished_sents + self.pad_index * (1 - unfinished_sents)
+            generated[cur_len] = next_words * unfinished_sents + \
+                self.pad_index * (1 - unfinished_sents)
             gen_len.add_(unfinished_sents)
             unfinished_sents.mul_(next_words.ne(self.eos_index).long())
             cur_len = cur_len + 1
@@ -554,20 +633,26 @@ class TransformerModel(nn.Module):
         n_words = self.n_words
 
         # expand to beam size the source latent representations / source lengths
-        src_enc = src_enc.unsqueeze(1).expand((bs, beam_size) + src_enc.shape[1:]).contiguous().view((bs * beam_size,) + src_enc.shape[1:])
-        src_len = src_len.unsqueeze(1).expand(bs, beam_size).contiguous().view(-1)
+        src_enc = src_enc.unsqueeze(1).expand(
+            (bs, beam_size) + src_enc.shape[1:]).contiguous().view((bs * beam_size,) + src_enc.shape[1:])
+        src_len = src_len.unsqueeze(1).expand(
+            bs, beam_size).contiguous().view(-1)
 
         # generated sentences (batch with beam current hypotheses)
         generated = src_len.new(max_len, bs * beam_size)  # upcoming output
-        generated.fill_(self.pad_index)                   # fill upcoming ouput with <PAD>
-        generated[0].fill_(self.eos_index)                # we use <EOS> for <BOS> everywhere
+        # fill upcoming ouput with <PAD>
+        generated.fill_(self.pad_index)
+        # we use <EOS> for <BOS> everywhere
+        generated[0].fill_(self.eos_index)
 
         # generated hypotheses
-        generated_hyps = [BeamHypotheses(beam_size, max_len, length_penalty, early_stopping) for _ in range(bs)]
+        generated_hyps = [BeamHypotheses(
+            beam_size, max_len, length_penalty, early_stopping) for _ in range(bs)]
 
         # positions
         positions = src_len.new(max_len).long()
-        positions = torch.arange(max_len, out=positions).unsqueeze(1).expand_as(generated)
+        positions = torch.arange(max_len, out=positions).unsqueeze(
+            1).expand_as(generated)
 
         # language IDs
         langs = positions.clone().fill_(tgt_lang_id)
@@ -601,16 +686,22 @@ class TransformerModel(nn.Module):
                 cache=cache
             )
             assert tensor.size() == (1, bs * beam_size, self.dim)
-            tensor = tensor.data[-1, :, :]               # (bs * beam_size, dim)
-            scores = self.pred_layer.get_scores(tensor)  # (bs * beam_size, n_words)
-            scores = F.log_softmax(scores, dim=-1)       # (bs * beam_size, n_words)
+            # (bs * beam_size, dim)
+            tensor = tensor.data[-1, :, :]
+            scores = self.pred_layer.get_scores(
+                tensor)  # (bs * beam_size, n_words)
+            # (bs * beam_size, n_words)
+            scores = F.log_softmax(scores, dim=-1)
             assert scores.size() == (bs * beam_size, n_words)
 
             # select next words with scores
-            _scores = scores + beam_scores[:, None].expand_as(scores)  # (bs * beam_size, n_words)
-            _scores = _scores.view(bs, beam_size * n_words)            # (bs, beam_size * n_words)
+            # (bs * beam_size, n_words)
+            _scores = scores + beam_scores[:, None].expand_as(scores)
+            # (bs, beam_size * n_words)
+            _scores = _scores.view(bs, beam_size * n_words)
 
-            next_scores, next_words = torch.topk(_scores, 2 * beam_size, dim=1, largest=True, sorted=True)
+            next_scores, next_words = torch.topk(
+                _scores, 2 * beam_size, dim=1, largest=True, sorted=True)
             assert next_scores.size() == next_words.size() == (bs, 2 * beam_size)
 
             # next batch beam content
@@ -621,9 +712,11 @@ class TransformerModel(nn.Module):
             for sent_id in range(bs):
 
                 # if we are done with this sentence
-                done[sent_id] = done[sent_id] or generated_hyps[sent_id].is_done(next_scores[sent_id].max().item())
+                done[sent_id] = done[sent_id] or generated_hyps[sent_id].is_done(
+                    next_scores[sent_id].max().item())
                 if done[sent_id]:
-                    next_batch_beam.extend([(0, self.pad_index, 0)] * beam_size)  # pad the batch
+                    next_batch_beam.extend(
+                        [(0, self.pad_index, 0)] * beam_size)  # pad the batch
                     continue
 
                 # next sentence beam content
@@ -638,18 +731,22 @@ class TransformerModel(nn.Module):
 
                     # end of sentence, or next word
                     if word_id == self.eos_index or cur_len + 1 == max_len:
-                        generated_hyps[sent_id].add(generated[:cur_len, sent_id * beam_size + beam_id].clone(), value.item())
+                        generated_hyps[sent_id].add(
+                            generated[:cur_len, sent_id * beam_size + beam_id].clone(), value.item())
                     else:
-                        next_sent_beam.append((value, word_id, sent_id * beam_size + beam_id))
+                        next_sent_beam.append(
+                            (value, word_id, sent_id * beam_size + beam_id))
 
                     # the beam for next step is full
                     if len(next_sent_beam) == beam_size:
                         break
 
                 # update next beam content
-                assert len(next_sent_beam) == 0 if cur_len + 1 == max_len else beam_size
+                assert len(next_sent_beam) == 0 if cur_len + \
+                    1 == max_len else beam_size
                 if len(next_sent_beam) == 0:
-                    next_sent_beam = [(0, self.pad_index, 0)] * beam_size  # pad the batch
+                    next_sent_beam = [(0, self.pad_index, 0)] * \
+                        beam_size  # pad the batch
                 next_batch_beam.extend(next_sent_beam)
                 assert len(next_batch_beam) == beam_size * (sent_id + 1)
 
@@ -730,7 +827,8 @@ class BeamHypotheses(object):
         if len(self) < self.n_hyp or score > self.worst_score:
             self.hyp.append((score, hyp))
             if len(self) > self.n_hyp:
-                sorted_scores = sorted([(s, idx) for idx, (s, _) in enumerate(self.hyp)])
+                sorted_scores = sorted([(s, idx)
+                                       for idx, (s, _) in enumerate(self.hyp)])
                 del self.hyp[sorted_scores[0][1]]
                 self.worst_score = sorted_scores[1][0]
             else:
