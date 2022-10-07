@@ -346,7 +346,7 @@ class TransformerModel(nn.Module):
     def forward(self, mode, **kwargs):
         """
         Forward function with different forward modes.
-        ### Small hack to handle PyTorch distributed.
+        # Small hack to handle PyTorch distributed.
         """
         if mode == 'fwd':
             return self.fwd(**kwargs)
@@ -461,7 +461,7 @@ class TransformerModel(nn.Module):
     def contrastive(self, embedding_src, embedding_tgt, embedding_cs=None, temperature=0.1, cs_weight=0.5):
         """
         Inputs:
-            `embedding_src` LongTensor(slen, bs, dim), containing fwd embeddings of src sentence 
+            `embedding_src` LongTensor(slen, bs, dim), containing fwd embeddings of src sentence
             `embedding_tgt` LongTensor(slen, bs, dim), containing fwd embeddings of tgt sentence
             `embedding_cs` LongTensor(slen, bs, dim), ( *optional)containing fwd embeddings of code-switched src sentence
         """
@@ -491,10 +491,10 @@ class TransformerModel(nn.Module):
 
         # Calculate Loss
         loss_orig = (-torch.log(sim_pair_orig.diag() /
-                     sim_pair_orig.sum(dim=1))).sum()
+                                (sim_pair_orig-sim_pair_orig.diag().diag()))).sum()
         if has_cs:
             loss_cs = (-torch.log(sim_pair_cs.diag() /
-                       sim_pair_cs.sum(dim=1))).sum()
+                                  (sim_pair_orig-sim_pair_orig.diag().diag()))).sum()
 
         loss = loss_orig
         if has_cs:
@@ -564,10 +564,10 @@ class TransformerModel(nn.Module):
             # compute word scores
             tensor = self.forward(
                 'fwd',
-                x=generated[:cur_len],
+                x=generated[: cur_len],
                 lengths=gen_len,
-                positions=positions[:cur_len],
-                langs=langs[:cur_len],
+                positions=positions[: cur_len],
+                langs=langs[: cur_len],
                 causal=True,
                 src_enc=src_enc,
                 src_len=src_len,
@@ -604,7 +604,7 @@ class TransformerModel(nn.Module):
         # sanity check
         assert (generated == self.eos_index).sum() == 2 * bs
 
-        return generated[:cur_len], gen_len
+        return generated[: cur_len], gen_len
 
     def generate_beam(self, src_enc, src_len, tgt_lang_id, beam_size, length_penalty, early_stopping, max_len=200):
         """
@@ -676,10 +676,10 @@ class TransformerModel(nn.Module):
             # compute word scores
             tensor = self.forward(
                 'fwd',
-                x=generated[:cur_len],
+                x=generated[: cur_len],
                 lengths=src_len.new(bs * beam_size).fill_(cur_len),
-                positions=positions[:cur_len],
-                langs=langs[:cur_len],
+                positions=positions[: cur_len],
+                langs=langs[: cur_len],
                 causal=True,
                 src_enc=src_enc,
                 src_len=src_len,
@@ -732,7 +732,7 @@ class TransformerModel(nn.Module):
                     # end of sentence, or next word
                     if word_id == self.eos_index or cur_len + 1 == max_len:
                         generated_hyps[sent_id].add(
-                            generated[:cur_len, sent_id * beam_size + beam_id].clone(), value.item())
+                            generated[: cur_len, sent_id * beam_size + beam_id].clone(), value.item())
                     else:
                         next_sent_beam.append(
                             (value, word_id, sent_id * beam_size + beam_id))
@@ -791,7 +791,7 @@ class TransformerModel(nn.Module):
         # generate target batch
         decoded = src_len.new(tgt_len.max().item(), bs).fill_(self.pad_index)
         for i, hypo in enumerate(best):
-            decoded[:tgt_len[i] - 1, i] = hypo
+            decoded[: tgt_len[i] - 1, i] = hypo
             decoded[tgt_len[i] - 1, i] = self.eos_index
 
         # sanity check
