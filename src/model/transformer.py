@@ -495,6 +495,7 @@ class TransformerModel(nn.Module):
         # Get Pairwise dot product (cosine similarity)
         sim_pair_orig = torch.exp(
             sent_embedding_src @ sent_embedding_tgt.T / temperature)  # (bs, bs)
+        print("spo", sim_pair_orig)
         if torch.any(torch.isnan(sim_pair_orig)):
             print("sim_pair_orig")
         if has_cs:
