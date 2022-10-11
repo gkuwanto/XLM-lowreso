@@ -944,9 +944,9 @@ class EncDecTrainer(Trainer):
             tgt = self.encoder('fwd', x=x2c, lengths=len2,
                                langs=langs2, causal=False)
             if torch.any(torch.isnan(src)):
-                print(src)
+                print("src")
             if torch.any(torch.isnan(tgt)):
-                print(tgt)
+                print("tgt")
             # Check for code switch flag
             cs = None
             if lang3 is not None:
