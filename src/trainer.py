@@ -945,6 +945,7 @@ class EncDecTrainer(Trainer):
                                langs=langs2, causal=False)
             if torch.any(torch.isnan(src)):
                 print("src")
+                break
             if torch.any(torch.isnan(tgt)):
                 print("tgt")
             # Check for code switch flag
