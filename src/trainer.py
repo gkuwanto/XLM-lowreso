@@ -957,6 +957,7 @@ class EncDecTrainer(Trainer):
             loss_ctr = self.decoder('contrastive', embedding_src=src, embedding_tgt=tgt,
                                     embedding_cs=cs, temperature=0.1, cs_weight=0.5)
             self.stats[('CL-%s-%s' % (lang1, lang2))].append(loss_ctr.item())
+            print(loss_ctr)
 
             # Average length is calculated because Contrastive Loss is sentence level
             # and Cross Entropy Loss is token level
