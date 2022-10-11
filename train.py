@@ -217,6 +217,7 @@ def get_parser():
                         help="Proportion of contrastive learning loss compared to Cross Entropy loss, 0.5 means equal proportion, 1 means only contrastive loss, 0 means only CE loss")
     parser.add_argument("--do_ctr", type=bool_flag, default=False,
                         help="Use contrastive loss for MT step")
+
     return parser
 
 
@@ -287,7 +288,7 @@ def main(params):
 
             # machine translation steps
             for lang1, lang2 in shuf_order(params.mt_steps, params):
-                lang3 = 'cs' if params.do_ctr and 'cs' in params.mt_steps else None
+                lang3 = 'cs' if params.do_ctr and cs in params.lgs else None
                 trainer.mt_step(lang1, lang2, params.lambda_mt,
                                 params.alpha_ctr, params.do_ctr, lang3)
 
