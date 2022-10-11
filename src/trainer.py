@@ -905,6 +905,8 @@ class EncDecTrainer(Trainer):
                 langs3 = x3.clone().fill_(lang3_id)
         langs1 = x1.clone().fill_(lang1_id)
         langs2 = x2.clone().fill_(lang2_id)
+        x1c = x1.clone()
+        x2c = x2.clone()
 
         # target words to predict
         alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
@@ -937,9 +939,9 @@ class EncDecTrainer(Trainer):
         if lang1 != lang2 and ctr:
             # Get embeddings of src and tgt sentences
             # (sent_len, batch_size, hidden_dimension)
-            src = self.encoder('fwd', x=x1, lengths=len1,
+            src = self.encoder('fwd', x=x1c, lengths=len1,
                                langs=langs1, causal=False)
-            tgt = self.encoder('fwd', x=x2, lengths=len2,
+            tgt = self.encoder('fwd', x=x2c, lengths=len2,
                                langs=langs2, causal=False)
             if torch.any(torch.isnan(src)):
                 print(src)
