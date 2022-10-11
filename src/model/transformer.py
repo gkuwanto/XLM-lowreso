@@ -471,10 +471,6 @@ class TransformerModel(nn.Module):
         # Mean Pooling
         sent_embedding_src = torch.mean(embedding_src, 0)  # (bs, dim)
         sent_embedding_tgt = torch.mean(embedding_tgt, 0)  # (bs, dim)
-        if torch.any(torch.isnan(sent_embedding_src)):
-            print("sent_embedding_src")
-        if torch.any(torch.isnan(sent_embedding_tgt)):
-            print("sent_embedding_tgt")
 
         if has_cs:
             sent_embedding_cs = torch.mean(embedding_cs, 0)  # (bs, dim)
@@ -487,17 +483,11 @@ class TransformerModel(nn.Module):
         if has_cs:
             sent_embedding_cs = torch.nn.functional.normalize(
                 sent_embedding_cs)
-        if torch.any(torch.isnan(sent_embedding_src)):
-            print("sent_embedding_src norm")
-        if torch.any(torch.isnan(sent_embedding_tgt)):
-            print("sent_embedding_tgt norm")
 
         # Get Pairwise dot product (cosine similarity)
         sim_pair_orig = torch.exp(
             sent_embedding_src @ sent_embedding_tgt.T / temperature)  # (bs, bs)
-        print("spo", sim_pair_orig)
-        if torch.any(torch.isnan(sim_pair_orig)):
-            print("sim_pair_orig")
+
         if has_cs:
             sim_pair_cs = torch.exp(
                 sent_embedding_cs @ sent_embedding_tgt.T / temperature)  # (bs, bs)
@@ -505,14 +495,13 @@ class TransformerModel(nn.Module):
         # Calculate Loss
         loss_orig = (-torch.log(sim_pair_orig.diag() /
                                 (sim_pair_orig.sum(dim=1)))).sum()
-        if torch.any(torch.isnan(loss_orig)):
-            print("loss_orig")
+
         if has_cs:
             loss_cs = (-torch.log(sim_pair_cs.diag() /
                                   (sim_pair_orig-sim_pair_orig.diag().diag()))).sum()
 
         loss = loss_orig
-        print(loss)
+
         if has_cs:
             loss += cs_weight * loss_cs
         return loss

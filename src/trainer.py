@@ -943,11 +943,7 @@ class EncDecTrainer(Trainer):
                                langs=langs1, causal=False)
             tgt = self.encoder('fwd', x=x2c, lengths=len2,
                                langs=langs2, causal=False)
-            if torch.any(torch.isnan(src)):
-                print("src")
-                exit()
-            if torch.any(torch.isnan(tgt)):
-                print("tgt")
+
             # Check for code switch flag
             cs = None
             if lang3 is not None:
@@ -958,7 +954,6 @@ class EncDecTrainer(Trainer):
             loss_ctr = self.decoder('contrastive', embedding_src=src, embedding_tgt=tgt,
                                     embedding_cs=cs, temperature=0.1, cs_weight=0.5)
             self.stats[('CL-%s-%s' % (lang1, lang2))].append(loss_ctr.item())
-            
 
             # Average length is calculated because Contrastive Loss is sentence level
             # and Cross Entropy Loss is token level
