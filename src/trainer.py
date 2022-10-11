@@ -900,7 +900,7 @@ class EncDecTrainer(Trainer):
         else:
             (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
             if lang3 is not None:
-                (x3, len3), _ = self.get_batch('mt', lang3, lang2)
+                (x3, len3) = self.get_batch('ae', lang3)
                 lang3_id = params.lang2id[lang3]
                 langs3 = x3.clone().fill_(lang3_id)
         langs1 = x1.clone().fill_(lang1_id)
