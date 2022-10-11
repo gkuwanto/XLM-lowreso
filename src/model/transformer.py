@@ -494,11 +494,11 @@ class TransformerModel(nn.Module):
 
         # Calculate Loss
         loss_orig = (-torch.log(sim_pair_orig.diag() /
-                                (sim_pair_orig.sum(dim=1)))).sum()
+                                sim_pair_orig.sum(dim=1))).sum()
 
         if has_cs:
             loss_cs = (-torch.log(sim_pair_cs.diag() /
-                                  (sim_pair_orig-sim_pair_orig.diag().diag()))).sum()
+                                  sim_pair_cs.sum(dim=1))).sum()
 
         loss = loss_orig
 
