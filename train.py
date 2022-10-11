@@ -287,7 +287,7 @@ def main(params):
 
             # machine translation steps
             for lang1, lang2 in shuf_order(params.mt_steps, params):
-                lang3 = 'cs' if params.do_ctr else None
+                lang3 = 'cs' if params.do_ctr and 'cs' in params.mt_steps else None
                 trainer.mt_step(lang1, lang2, params.lambda_mt,
                                 params.alpha_ctr, params.do_ctr, lang3)
 
