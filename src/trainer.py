@@ -938,7 +938,8 @@ class EncDecTrainer(Trainer):
             # Get embeddings of src and tgt sentences
             # (sent_len, batch_size, hidden_dimension)
             src = enc1.transpose(0, 1)
-            tgt = dec2
+            tgt = self.encoder('fwd', x=x2, lengths=len2,
+                            langs=langs2, causal=False)
             print(src)
             print(tgt)
             # Check for code switch flag
