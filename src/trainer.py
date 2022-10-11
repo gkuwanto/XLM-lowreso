@@ -940,7 +940,10 @@ class EncDecTrainer(Trainer):
             src = enc1.transpose(0, 1)
             tgt = self.encoder('fwd', x=x2, lengths=len2,
                                langs=langs2, causal=False)
-
+            if torch.isnan(src):
+                print(src)
+            if torch.isnan(tgt):
+                print(tgt)
             # Check for code switch flag
             cs = None
             if lang3 is not None:
