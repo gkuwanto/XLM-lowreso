@@ -481,6 +481,7 @@ class TransformerModel(nn.Module):
         if has_cs:
             sent_embedding_cs = torch.nn.functional.normalize(
                 sent_embedding_cs)
+        print(sent_embedding_src)
 
         # Get Pairwise dot product (cosine similarity)
         sim_pair_orig = torch.exp(
@@ -497,6 +498,7 @@ class TransformerModel(nn.Module):
                                   (sim_pair_orig-sim_pair_orig.diag().diag()))).sum()
 
         loss = loss_orig
+        print(loss)
         if has_cs:
             loss += cs_weight * loss_cs
         return loss
