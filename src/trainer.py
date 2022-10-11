@@ -937,7 +937,8 @@ class EncDecTrainer(Trainer):
         if lang1 != lang2 and ctr:
             # Get embeddings of src and tgt sentences
             # (sent_len, batch_size, hidden_dimension)
-            src = enc1.transpose(0, 1)
+            src = self.encoder('fwd', x=x1, lengths=len1,
+                               langs=langs1, causal=False)
             tgt = self.encoder('fwd', x=x2, lengths=len2,
                                langs=langs2, causal=False)
             if torch.any(torch.isnan(src)):
