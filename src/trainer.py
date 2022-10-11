@@ -939,7 +939,8 @@ class EncDecTrainer(Trainer):
             # (sent_len, batch_size, hidden_dimension)
             src = enc1.transpose(0, 1)
             tgt = dec2
-
+            print(src)
+            print(tgt)
             # Check for code switch flag
             cs = None
             if lang3 is not None:
