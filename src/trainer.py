@@ -957,7 +957,7 @@ class EncDecTrainer(Trainer):
 
             # Average length is calculated because Contrastive Loss is sentence level
             # and Cross Entropy Loss is token level
-            avg_len = (len1 + len2).double().mean()
+            avg_len = (len1 + len2).double().mean() / 2
 
             loss = (1-alpha) * loss + alpha * avg_len * loss_ctr
 
