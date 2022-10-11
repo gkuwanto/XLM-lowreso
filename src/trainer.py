@@ -920,7 +920,7 @@ class EncDecTrainer(Trainer):
             x1, len1, langs1, x2, len2, langs2, y)
         if lang3 is not None:
             x3, len3, langs3 = to_cuda(x3, len3, langs3)
-
+        x1c, x2c = to_cuda(x1c, x2c)
         # encode source sentence
         enc1 = self.encoder('fwd', x=x1, lengths=len1,
                             langs=langs1, causal=False)
