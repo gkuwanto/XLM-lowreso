@@ -321,6 +321,14 @@ class Trainer(object):
                     group_by_size=self.params.group_by_size,
                     n_sentences=-1,
                 )
+        elif iter_name == "cs":
+            _lang1, _lang2 = (
+                lang1, lang2) if lang1 < lang2 else (lang2, lang1)
+            iterator = self.data['cs'][(_lang1, _lang2, 'cs')]['train'].get_iterator(
+                shuffle=True,
+                group_by_size=self.params.group_by_size,
+                n_sentences=-1,
+            )
         else:
             assert stream is False
             _lang1, _lang2 = (
@@ -898,15 +906,18 @@ class EncDecTrainer(Trainer):
             (x2, len2) = (x1, len1)
             (x1, len1) = self.add_noise(x1, len1)
         else:
-            (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
             if lang3 is not None:
-                (x3, len3) = self.get_batch('ae', lang3)
+                (x1, len1), (x2, len2), (x3, len3) = self.get_batch('cs', lang1, lang2)
                 lang3_id = params.lang2id[lang3]
                 langs3 = x3.clone().fill_(lang3_id)
+            else:
+                (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
         langs1 = x1.clone().fill_(lang1_id)
         langs2 = x2.clone().fill_(lang2_id)
         x1c = x1.clone()
         x2c = x2.clone()
+        if lang3 is not None:
+            x3c = x3.clone()
 
         # target words to predict
         alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)

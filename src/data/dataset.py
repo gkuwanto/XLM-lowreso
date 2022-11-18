@@ -402,3 +402,188 @@ class ParallelDataset(Dataset):
 
         # return the iterator
         return self.get_batches_iterator(batches, return_indices)
+
+class CodeswitchDataset(ParallelDataset):
+
+    def __init__(self, sent1, pos1, sent2, pos2, sent3, pos3, params):
+
+        self.eos_index = params.eos_index
+        self.pad_index = params.pad_index
+        self.batch_size = params.batch_size
+        self.tokens_per_batch = params.tokens_per_batch
+        self.max_batch_size = params.max_batch_size
+
+        self.sent1 = sent1
+        self.sent2 = sent2
+        self.sent3 = sent3
+        self.pos1 = pos1
+        self.pos2 = pos2
+        self.pos3 = pos3
+        self.lengths1 = self.pos1[:, 1] - self.pos1[:, 0]
+        self.lengths2 = self.pos2[:, 1] - self.pos2[:, 0]
+        self.lengths3 = self.pos3[:, 1] - self.pos3[:, 0]
+
+        # check number of sentences
+        assert len(self.pos1) == (self.sent1 == self.eos_index).sum()
+        assert len(self.pos2) == (self.sent2 == self.eos_index).sum()
+        assert len(self.pos3) == (self.sent3 == self.eos_index).sum()
+
+        # remove empty sentences
+        self.remove_empty_sentences()
+
+        # sanity checks
+        self.check()
+
+    def __len__(self):
+        """
+        Number of sentences in the dataset.
+        """
+        return len(self.pos1)
+
+    def check(self):
+        """
+        Sanity checks.
+        """
+        eos = self.eos_index
+        assert len(self.pos1) == len(self.pos2) == len(self.pos3) > 0                          # check number of sentences
+        assert len(self.pos1) == (self.sent1[self.pos1[:, 1]] == eos).sum()  # check sentences indices
+        assert len(self.pos2) == (self.sent2[self.pos2[:, 1]] == eos).sum()  # check sentences indices
+        assert len(self.pos3) == (self.sent3[self.pos3[:, 1]] == eos).sum()  # check sentences indices
+        assert eos <= self.sent1.min() < self.sent1.max()                    # check dictionary indices
+        assert eos <= self.sent2.min() < self.sent2.max()                    # check dictionary indices
+        assert eos <= self.sent3.min() < self.sent3.max()                    # check dictionary indices
+        assert self.lengths1.min() > 0                                       # check empty sentences
+        assert self.lengths2.min() > 0                                       # check empty sentences
+        assert self.lengths3.min() > 0                                       # check empty sentences
+
+    def remove_empty_sentences(self):
+        """
+        Remove empty sentences.
+        """
+        init_size = len(self.pos1)
+        indices = np.arange(len(self.pos1))
+        indices = indices[self.lengths1[indices] > 0]
+        indices = indices[self.lengths2[indices] > 0]
+        indices = indices[self.lengths3[indices] > 0]
+        self.pos1 = self.pos1[indices]
+        self.pos2 = self.pos2[indices]
+        self.pos3 = self.pos3[indices]
+        self.lengths1 = self.pos1[:, 1] - self.pos1[:, 0]
+        self.lengths2 = self.pos2[:, 1] - self.pos2[:, 0]
+        self.lengths3 = self.pos3[:, 1] - self.pos3[:, 0]
+        logger.info("Removed %i empty sentences." % (init_size - len(indices)))
+        self.check()
+
+    def remove_long_sentences(self, max_len):
+        """
+        Remove sentences exceeding a certain length.
+        """
+        assert max_len >= 0
+        if max_len == 0:
+            return
+        init_size = len(self.pos1)
+        indices = np.arange(len(self.pos1))
+        indices = indices[self.lengths1[indices] <= max_len]
+        indices = indices[self.lengths2[indices] <= max_len]
+        indices = indices[self.lengths3[indices] <= max_len]
+        self.pos1 = self.pos1[indices]
+        self.pos2 = self.pos2[indices]
+        self.pos3 = self.pos3[indices]
+        self.lengths1 = self.pos1[:, 1] - self.pos1[:, 0]
+        self.lengths2 = self.pos2[:, 1] - self.pos2[:, 0]
+        self.lengths3 = self.pos3[:, 1] - self.pos3[:, 0]
+        logger.info("Removed %i too long sentences." % (init_size - len(indices)))
+        self.check()
+
+    def select_data(self, a, b):
+        """
+        Only select a subset of the dataset.
+        """
+        assert 0 <= a < b <= len(self.pos1)
+        logger.info("Selecting sentences from %i to %i ..." % (a, b))
+
+        # sub-select
+        self.pos1 = self.pos1[a:b]
+        self.pos2 = self.pos2[a:b]
+        self.pos3 = self.pos3[a:b]
+        self.lengths1 = self.pos1[:, 1] - self.pos1[:, 0]
+        self.lengths2 = self.pos2[:, 1] - self.pos2[:, 0]
+        self.lengths3 = self.pos3[:, 1] - self.pos3[:, 0]
+
+        # re-index
+        min_pos1 = self.pos1.min()
+        max_pos1 = self.pos1.max()
+        min_pos2 = self.pos2.min()
+        max_pos2 = self.pos2.max()
+        min_pos3 = self.pos3.min()
+        max_pos3 = self.pos3.max()
+        self.pos1 -= min_pos1
+        self.pos2 -= min_pos2
+        self.pos3 -= min_pos3
+        self.sent1 = self.sent1[min_pos1:max_pos1 + 1]
+        self.sent2 = self.sent2[min_pos2:max_pos2 + 1]
+        self.sent3 = self.sent3[min_pos3:max_pos3 + 1]
+
+        # sanity checks
+        self.check()
+
+    def get_batches_iterator(self, batches, return_indices):
+        """
+        Return a sentences iterator, given the associated sentence batches.
+        """
+        assert type(return_indices) is bool
+
+        for sentence_ids in batches:
+            if 0 < self.max_batch_size < len(sentence_ids):
+                np.random.shuffle(sentence_ids)
+                sentence_ids = sentence_ids[:self.max_batch_size]
+            pos1 = self.pos1[sentence_ids]
+            pos2 = self.pos2[sentence_ids]
+            pos3 = self.pos3[sentence_ids]
+            sent1 = self.batch_sentences([self.sent1[a:b] for a, b in pos1])
+            sent2 = self.batch_sentences([self.sent2[a:b] for a, b in pos2])
+            sent3 = self.batch_sentences([self.sent3[a:b] for a, b in pos3])
+            yield (sent1, sent2, sent3, sentence_ids) if return_indices else (sent1, sent2, sent3)
+
+    def get_iterator(self, shuffle, group_by_size=False, n_sentences=-1, return_indices=False):
+        """
+        Return a sentences iterator.
+        """
+        n_sentences = len(self.pos1) if n_sentences == -1 else n_sentences
+        assert 0 < n_sentences <= len(self.pos1)
+        assert type(shuffle) is bool and type(group_by_size) is bool
+
+        # sentence lengths
+        lengths = self.lengths1 + self.lengths2 + self.lengths3 + 6
+
+        # select sentences to iterate over
+        if shuffle:
+            indices = np.random.permutation(len(self.pos1))[:n_sentences]
+        else:
+            indices = np.arange(n_sentences)
+
+        # group sentences by lengths
+        if group_by_size:
+            indices = indices[np.argsort(lengths[indices], kind='mergesort')]
+
+        # create batches - either have a fixed number of sentences, or a similar number of tokens
+        if self.tokens_per_batch == -1:
+            batches = np.array_split(indices, math.ceil(len(indices) * 1. / self.batch_size))
+        else:
+            batch_ids = np.cumsum(lengths[indices]) // self.tokens_per_batch
+            _, bounds = np.unique(batch_ids, return_index=True)
+            batches = [indices[bounds[i]:bounds[i + 1]] for i in range(len(bounds) - 1)]
+            if bounds[-1] < len(indices):
+                batches.append(indices[bounds[-1]:])
+
+        # optionally shuffle batches
+        if shuffle:
+            np.random.shuffle(batches)
+
+        # sanity checks
+        assert n_sentences == sum([len(x) for x in batches])
+        assert lengths[indices].sum() == sum([lengths[x].sum() for x in batches])
+        # assert set.union(*[set(x.tolist()) for x in batches]) == set(range(n_sentences))  # slow
+
+        # return the iterator
+        return self.get_batches_iterator(batches, return_indices)

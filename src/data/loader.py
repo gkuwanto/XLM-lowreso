@@ -10,7 +10,7 @@ import os
 import numpy as np
 import torch
 
-from .dataset import StreamDataset, Dataset, ParallelDataset
+from .dataset import StreamDataset, Dataset, ParallelDataset, CodeswitchDataset
 from .dictionary import BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
 
 
@@ -227,6 +227,75 @@ def load_para_data(params, data):
     logger.info("")
 
 
+def load_cs_data(params, data):
+    """
+    Load parallel data.
+    """
+    data['cs'] = {}
+
+    required_cs_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
+
+    for src, tgt in params.para_dataset.keys():
+
+        logger.info('============ Codeswitch data (%s-%s-%s)' % (src, tgt, 'cs'))
+
+        assert (src, tgt, 'cs') not in data['cs']
+        data['cs'][(src, tgt, 'cs')] = {}
+
+        for splt in ['train']:
+
+            # no need to load training data for evaluation
+            if splt == 'train' and params.eval_only:
+                continue
+
+            # for back-translation, we can't load training data
+            if splt == 'train' and (src, tgt) not in required_cs_train and (tgt, src) not in required_cs_train:
+                continue
+
+            # load binarized datasets
+            src_path, tgt_path, cs_path = params.cs_dataset[(src, tgt, 'cs')][splt]
+            
+            src_data = load_binarized(src_path, params)
+            tgt_data = load_binarized(tgt_path, params)
+            cs_data = load_binarized(cs_path, params)
+
+            # update dictionary parameters
+            set_dico_parameters(params, data, src_data['dico'])
+            set_dico_parameters(params, data, tgt_data['dico'])
+            set_dico_parameters(params, data, cs_data['dico'])
+
+            # create ParallelDataset
+            dataset = CodeswitchDataset(
+                src_data['sentences'], src_data['positions'],
+                tgt_data['sentences'], tgt_data['positions'],
+                cs_data['sentences'],  cs_data['positions'],
+                params
+            )
+
+            # remove empty and too long sentences
+            if splt == 'train':
+                dataset.remove_empty_sentences()
+                dataset.remove_long_sentences(params.max_len)
+
+            # for validation and test set, enumerate sentence per sentence
+            if splt != 'train':
+            	dataset.remove_empty_sentences()
+            	dataset.remove_long_sentences(params.max_len)
+            	dataset.tokens_per_batch = -1
+
+            # if there are several processes on the same machine, we can split the dataset
+            if splt == 'train' and params.n_gpu_per_node > 1 and params.split_data:
+                n_sent = len(dataset) // params.n_gpu_per_node
+                a = n_sent * params.local_rank
+                b = n_sent * params.local_rank + n_sent
+                dataset.select_data(a, b)
+
+            data['cs'][(src, tgt, 'cs')][splt] = dataset
+            logger.info("")
+
+    logger.info("")
+
+
 def check_data_params(params):
     """
     Check datasets parameters.
@@ -318,6 +387,19 @@ def check_data_params(params):
                 logger.error(f"{p2} not found")
     assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
 
+    params.cs_dataset = {
+        (src, tgt, 'cs'): {
+            splt: (os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, src)),
+                   os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, tgt)),
+                   os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, 'cs')),
+                   )
+            for splt in ['train']
+            if splt != 'train' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
+        } for src in params.langs for tgt in params.langs
+        if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
+    }
+    assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
+
     # check that we can evaluate on BLEU
     assert params.eval_bleu is False or len(params.mt_steps + params.bt_steps) > 0
 
@@ -338,6 +420,8 @@ def load_data(params):
     # parallel datasets
     load_para_data(params, data)
 
+    load_cs_data(params, data)
+
     # monolingual data summary
     logger.info('============ Data summary')
     for lang, v in data['mono_stream'].items():
@@ -348,6 +432,11 @@ def load_data(params):
     for (src, tgt), v in data['para'].items():
         for data_set in v.keys():
             logger.info('{: <18} - {: >5} - {: >12}:{: >10}'.format('Parallel data', data_set, '%s-%s' % (src, tgt), len(v[data_set])))
+
+    for (src, tgt, cs), v in data['cs'].items():
+        for data_set in v.keys():
+            logger.info('{: <18} - {: >5} - {: >12}:{: >10}'.format('Codeswitch data', data_set, '%s-%s' % (src, tgt), len(v[data_set])))
+
 
     logger.info("")
     return data
