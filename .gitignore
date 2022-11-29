@@ -136,3 +136,6 @@ dmypy.json
 *.qsub*
 
 currentselection.sh
+
+old_models
+tools/*
