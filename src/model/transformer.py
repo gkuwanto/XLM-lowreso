@@ -355,6 +355,10 @@ class TransformerModel(nn.Module):
             return self.predict(**kwargs)
         elif mode == 'contrastive':
             return self.contrastive(**kwargs)
+        elif mode == 'mlm_cl':
+            return self.mlm_cl(**kwargs)
+        elif mode == 'mlm_cl_jsd':
+            return self.mlm_cl_jsd(**kwargs)
         else:
             raise Exception("Unknown mode: %s" % mode)
 
@@ -458,6 +462,100 @@ class TransformerModel(nn.Module):
         tensor = tensor.transpose(0, 1)
 
         return tensor
+
+    def mlm_cl(self, x, lengths, tensor, causal=False, temperature=0.1):
+        """
+        Calculate Token Level Contrastive Loss (no modification)
+        Given last hidden layer
+        """
+        h = tensor  # (length * batch_size * dim)
+        e = self.embeddings(x)  # (length * batch_size * emb_dim)
+
+        # similarity definition
+        cos = nn.CosineSimilarity(dim=0, eps=1e-6)
+
+        # global anchor calculation
+        g = h - e  # (length * batch_size * dim)
+        # initiating out of loop variables
+
+        loss = 0
+        _, bs = x.size()
+        # loop through all sentences
+        positives = g[:, :, :]
+        positive_pairs_number = 10
+        negative_pairs_number = 10
+        for sentence_index in range(bs):
+            g_sentence = g[:, sentence_index, :]
+            # loop through each non-padding token pairs
+            for _ in range(positive_pairs_number):
+                j, j_c = torch.randperm(lengths[sentence_index])[:2]
+                # get global anchor for token pairs
+                g_j = g_sentence[j]
+                g_j_c = g_sentence[j_c]
+                
+                # calculate similarity
+                neg_sim = 0
+                positive_sim = torch.exp(cos(g_j, g_j_c) / temperature)
+                
+                # negative sample comes from other sentences
+                for negative_sentence_index in range(bs):
+                    if negative_sentence_index == sentence_index:
+                        continue
+                    g_neg_sentence = g[:, negative_sentence_index, :]
+                    
+                    for c_neg in torch.randperm(lengths[negative_sentence_index])[:negative_pairs_number]:
+                        neg_sim += torch.exp(cos(g_j, g_neg_sentence[c_neg])/ temperature)
+                
+                # Calculate Loss (Get average over sentence length and batch size)
+                loss += torch.log(positive_sim / neg_sim)/(-1 * bs * 10)
+
+        return loss
+
+    def mlm_cl_jsd(self, x, lengths, tensor, causal=False, temperature=0.1):
+        """
+        Calculate Token Level Contrastive Loss with Jensen Shannon Divergence
+        https://arxiv.org/pdf/2112.07133.pdf
+        https://arxiv.org/pdf/1808.06670.pdf
+        Given last hidden layer
+        """
+        h = tensor  # (length * batch_size * dim)
+        e = self.embeddings(x)  # (length * batch_size * emb_dim)
+
+        # similarity definition
+        cos = nn.CosineSimilarity(dim=0, eps=1e-6)
+
+        # global anchor calculation
+        g = h - e  # (length * batch_size * dim)
+        # initiating out of loop variables
+
+        loss = 0
+        _, bs = x.size()
+        # loop through all sentences
+        positives = g[:, :, :]
+        for sentence_index in range(bs):
+            g_sentence = g[:, sentence_index, :]
+            j, j_c = torch.randperm(lengths[sentence_index])[:2]
+            # get global anchor for token pairs
+            g_j = g_sentence[j]
+            g_j_c = g_sentence[j_c]
+            
+            # calculate similarity
+            neg_sim = 0
+            positive_sim = torch.exp(cos(g_j, g_j_c))
+            
+            # negative sample comes from other sentences
+            for negative_sentence_index in range(bs):
+                if negative_sentence_index == sentence_index:
+                    continue
+                g_neg_sentence = g[:, negative_sentence_index, :]
+                
+                c_neg = torch.randperm(lengths[negative_sentence_index])[0]
+                neg_sim += torch.exp(cos(g_j, g_neg_sentence[c_neg]))
+            
+            # Calculate Loss (Get average over sentence length and batch size)
+            loss += torch.log(1+torch.exp(-1* positive_sim)) + torch.log(1+neg_sim)
+
+        return loss
 
     def contrastive(self, embedding_src, embedding_tgt, embedding_cs=None, temperature=0.1, cs_weight=0.5):
         """

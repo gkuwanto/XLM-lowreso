@@ -217,6 +217,10 @@ def get_parser():
                         help="Proportion of contrastive learning loss compared to Cross Entropy loss, 0.5 means equal proportion, 1 means only contrastive loss, 0 means only CE loss")
     parser.add_argument("--do_ctr", type=bool_flag, default=False,
                         help="Use contrastive loss for MT step")
+    parser.add_argument("--do_mlm_ctr", type=bool_flag, default=False,
+                        help="Do contrastive loss for MLM")
+    parser.add_argument("--do_mlm_ctr_jsd", type=bool_flag, default=False,
+                        help="Do contrastive loss for MLM with JSD modification")
 
     return parser
 
@@ -276,8 +280,10 @@ def main(params):
 
             # MLM steps (also includes TLM if lang2 is not None)
             for lang1, lang2 in shuf_order(params.mlm_steps, params):
-                trainer.mlm_step(lang1, lang2, params.lambda_mlm)
-
+                if params.do_mlm_ctr and lang2 is None:
+                    trainer.mlm_cl_step(lang1, lang2, params.lambda_mlm)
+                else:
+                    trainer.mlm_step(lang1, lang2, params.lambda_mlm)
             # parallel classification steps
             for lang1, lang2 in shuf_order(params.pc_steps, params):
                 trainer.pc_step(lang1, lang2, params.lambda_pc)

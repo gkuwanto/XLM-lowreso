@@ -124,6 +124,7 @@ class Trainer(object):
             [('CLM-%s-%s' % (l1, l2), []) for l1, l2 in data['para'].keys()] +
             [('CLM-%s-%s' % (l2, l1), []) for l1, l2 in data['para'].keys()] +
             [('MLM-%s' % l, []) for l in params.langs] +
+            [('MLM-CL-%s' % l, []) for l in params.langs] +
             [('MLM-%s-%s' % (l1, l2), []) for l1, l2 in data['para'].keys()] +
             [('MLM-%s-%s' % (l2, l1), []) for l1, l2 in data['para'].keys()] +
             [('PC-%s-%s' % (l1, l2), []) for l1, l2 in params.pc_steps] +
@@ -796,6 +797,64 @@ class Trainer(object):
         self.n_sentences += params.batch_size
         self.stats['processed_s'] += lengths.size(0)
         self.stats['processed_w'] += pred_mask.sum().item()
+
+    
+    def mlm_cl_step(self, lang1, lang2, lambda_coeff):
+        """
+        Masked word contrastive learning step.
+        MLM_CL objective is lang2 is None, TLM objective otherwise.
+        """
+
+        assert lambda_coeff >= 0
+
+        # Does not Support TLM now
+        if lang2 is not None:
+            return self.mlm_step(lang1, lang2, lambda_coeff)
+
+        if lambda_coeff == 0:
+            return
+        params = self.params
+        name = 'model' if params.encoder_only else 'encoder'
+        model = getattr(self, name)
+        model.train()
+
+        # generate batch / select words to predict
+        x, lengths, positions, langs, _ = self.generate_batch(
+            lang1, lang2, 'pred')
+        x, lengths, positions, langs, _ = self.round_batch(
+            x, lengths, positions, langs)
+
+        x, y, pred_mask = self.mask_out(x, lengths)
+
+        # cuda
+        x, y, pred_mask, lengths, positions, langs = to_cuda(
+            x, y, pred_mask, lengths, positions, langs)
+
+        # forward / loss
+        tensor = model('fwd', x=x, lengths=lengths,
+                       positions=positions, langs=langs, causal=False)
+                       
+        _, loss_p = model('predict', tensor=tensor,
+                        pred_mask=pred_mask, y=y, get_scores=False)
+        if params.do_mlm_ctr_jsd:
+            mode = 'mlm_cl_jsd'
+        else:
+            mode = 'mlm_cl'
+        loss_cl = model(mode, x=x, lengths=lengths, tensor=tensor)
+        
+        alpha = 0.1
+        loss = loss_cl * alpha +  (1-alpha) * loss_p
+        self.stats[('MLM-CL-%s' % lang1)].append(loss.item())
+        loss = lambda_coeff * loss
+
+        # optimize
+        self.optimize(loss)
+
+        # number of processed sentences / words
+        self.n_sentences += params.batch_size
+        self.stats['processed_s'] += lengths.size(0)
+        self.stats['processed_w'] += pred_mask.sum().item()
+
 
     def pc_step(self, lang1, lang2, lambda_coeff):
         """
